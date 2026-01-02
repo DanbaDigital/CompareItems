@@ -21,45 +21,33 @@ function CompareItems_Init()
     ComparisonTooltip = CreateFrame("GameTooltip", "CompareItemsTooltip", UIParent, "GameTooltipTemplate")
     ComparisonTooltip:SetFrameStrata("DIALOG")  -- Higher strata to ensure visibility
 
-    -- Hook GameTooltip's OnTooltipSetItem
-    local origOnTooltipSetItem = GameTooltip:GetScript("OnTooltipSetItem")
-    GameTooltip:SetScript("OnTooltipSetItem", function(self)
-        -- Call original function
-        if origOnTooltipSetItem then
-            origOnTooltipSetItem(self)
-        end
-
-        -- Check if shift is held
-        if IsShiftKeyDown() then
-            DEFAULT_CHAT_FRAME:AddMessage("Shift is down, checking item...")
-            local name, link = self:GetItem()
-            if link then
-                DEFAULT_CHAT_FRAME:AddMessage("Item link found: " .. link)
+    -- Use OnUpdate to check for shift key while tooltip is visible
+    frame:SetScript("OnUpdate", function()
+        if GameTooltip:IsVisible() and IsShiftKeyDown() then
+            local name, link = GameTooltip:GetItem()
+            if link and not ComparisonTooltip:IsVisible() then
+                DEFAULT_CHAT_FRAME:AddMessage("Shift detected, checking item: " .. (name or "unknown"))
                 local slots = CompareItems_GetSlotForItem(link)
                 if slots then
-                    DEFAULT_CHAT_FRAME:AddMessage("Slots found: " .. table.concat(slots, ", "))
+                    DEFAULT_CHAT_FRAME:AddMessage("Slots: " .. table.concat(slots, ", "))
                     for _, slot in ipairs(slots) do
                         local equippedLink = GetInventoryItemLink("player", slot)
                         if equippedLink then
-                            DEFAULT_CHAT_FRAME:AddMessage("Equipped item found in slot " .. slot .. ": " .. equippedLink)
+                            DEFAULT_CHAT_FRAME:AddMessage("Showing comparison for slot " .. slot)
                             CompareItems_ShowComparisonTooltip(equippedLink)
-                            break  -- Show the first equipped item
-                        else
-                            DEFAULT_CHAT_FRAME:AddMessage("No equipped item in slot " .. slot)
+                            break
                         end
                     end
                 else
                     DEFAULT_CHAT_FRAME:AddMessage("No slots found for item")
                 end
-            else
-                DEFAULT_CHAT_FRAME:AddMessage("No item link found")
             end
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("Shift not down")
+        elseif ComparisonTooltip:IsVisible() then
+            CompareItems_HideComparisonTooltip()
         end
     end)
 
-    DEFAULT_CHAT_FRAME:AddMessage("Tooltip hook set successfully!")
+    DEFAULT_CHAT_FRAME:AddMessage("CompareItems OnUpdate hook set!")
 
     -- Hook OnHide to hide comparison tooltip
     local origOnHide = GameTooltip:GetScript("OnHide")
