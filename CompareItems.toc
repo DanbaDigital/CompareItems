@@ -1,0 +1,7 @@
+## Interface: 11200
+## Title: CompareItems
+## Notes: Compare items in bags to equipped items by holding shift while hovering
+## Author: Xiroy
+## Version: 1.0.0
+
+CompareItems.lua
