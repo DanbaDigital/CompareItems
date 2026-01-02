@@ -17,7 +17,7 @@ end)
 function CompareItems_Init()
     -- Create comparison tooltip
     ComparisonTooltip = CreateFrame("GameTooltip", "CompareItemsTooltip", UIParent, "GameTooltipTemplate")
-    ComparisonTooltip:SetFrameStrata("TOOLTIP")
+    ComparisonTooltip:SetFrameStrata("DIALOG")  -- Higher strata to ensure visibility
 
     -- Hook GameTooltip's OnTooltipSetItem
     local origOnTooltipSetItem = GameTooltip:GetScript("OnTooltipSetItem")
@@ -36,11 +36,16 @@ function CompareItems_Init()
                     for _, slot in ipairs(slots) do
                         local equippedLink = GetInventoryItemLink("player", slot)
                         if equippedLink then
+                            DEFAULT_CHAT_FRAME:AddMessage("CompareItems: Showing comparison for slot " .. slot)
                             CompareItems_ShowComparisonTooltip(equippedLink)
                             break  -- Show the first equipped item
                         end
                     end
+                else
+                    DEFAULT_CHAT_FRAME:AddMessage("CompareItems: No slots found for item")
                 end
+            else
+                DEFAULT_CHAT_FRAME:AddMessage("CompareItems: No item link found")
             end
         end
     end)
@@ -73,8 +78,10 @@ function CompareItems_GetSlotForItem(link)
         ["INVTYPE_FINGER"] = {11, 12},
         ["INVTYPE_TRINKET"] = {13, 14},
         ["INVTYPE_BACK"] = {15},
-        ["INVTYPE_MAINHAND"] = {16},
-        ["INVTYPE_OFFHAND"] = {17},
+        ["INVTYPE_WEAPON"] = {16, 17},  -- One-hand weapons can go in main or off-hand
+        ["INVTYPE_2HWEAPON"] = {16},     -- Two-hand weapons
+        ["INVTYPE_SHIELD"] = {17},
+        ["INVTYPE_HOLDABLE"] = {17},
         ["INVTYPE_RANGED"] = {18},
         ["INVTYPE_TABARD"] = {19},
     }
