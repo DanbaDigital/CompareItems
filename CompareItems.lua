@@ -1,67 +1,91 @@
 -- CompareItems Addon for WoW Vanilla
--- Allows comparing items by holding shift while hovering over items in bags
+-- Shows equipped items in tooltips when hovering over items
 
-local addonName = "CompareItems"
+local function print_msg(msg)
+    DEFAULT_CHAT_FRAME:AddMessage(LIGHTYELLOW_FONT_COLOR_CODE .. "<CompareItems> " .. msg)
+end
 
--- Create a frame to handle events
+-- Test if file is loading
+if DEFAULT_CHAT_FRAME then
+    print_msg("FILE LOADING - DEFAULT_CHAT_FRAME exists")
+else
+    print("ERROR: DEFAULT_CHAT_FRAME does not exist!")
+end
+
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
+print_msg("Frame created")
 
-frame:SetScript("OnEvent", function(self, event, addon)
-    if event == "ADDON_LOADED" and addon == addonName then
-        -- Initialize the addon
+frame:RegisterEvent("VARIABLES_LOADED")
+print_msg("Registered VARIABLES_LOADED")
+
+frame:RegisterEvent("ADDON_LOADED")
+print_msg("Registered ADDON_LOADED")
+
+frame:SetScript("OnEvent", function(self)
+    print_msg("EVENT FIRED: " .. tostring(event) .. " arg1=" .. tostring(arg1))
+    if event == "ADDON_LOADED" and arg1 == "CompareItems" then
+        print_msg(">>> ADDON_LOADED CompareItems triggered")
+    elseif event == "VARIABLES_LOADED" then
+        print_msg(">>> VARIABLES_LOADED triggered - calling Init")
         CompareItems_Init()
     end
 end)
 
+print_msg("Event handler setup complete")
+
 function CompareItems_Init()
-    DEFAULT_CHAT_FRAME:AddMessage("CompareItems addon loaded successfully!")
-
-    -- Create comparison tooltip
-    ComparisonTooltip = CreateFrame("GameTooltip", "CompareItemsTooltip", UIParent, "GameTooltipTemplate")
-    ComparisonTooltip:SetFrameStrata("DIALOG")  -- Higher strata to ensure visibility
-
-    -- Use OnUpdate to check for shift key while tooltip is visible
-    frame:SetScript("OnUpdate", function()
-        if GameTooltip:IsVisible() and IsShiftKeyDown() then
-            local name, link = GameTooltip:GetItem()
-            if link and not ComparisonTooltip:IsVisible() then
-                DEFAULT_CHAT_FRAME:AddMessage("Shift detected, checking item: " .. (name or "unknown"))
-                local slots = CompareItems_GetSlotForItem(link)
-                if slots then
-                    DEFAULT_CHAT_FRAME:AddMessage("Slots: " .. table.concat(slots, ", "))
-                    for _, slot in ipairs(slots) do
-                        local equippedLink = GetInventoryItemLink("player", slot)
-                        if equippedLink then
-                            DEFAULT_CHAT_FRAME:AddMessage("Showing comparison for slot " .. slot)
-                            CompareItems_ShowComparisonTooltip(equippedLink)
-                            break
-                        end
-                    end
-                else
-                    DEFAULT_CHAT_FRAME:AddMessage("No slots found for item")
-                end
-            end
-        elseif ComparisonTooltip:IsVisible() then
-            CompareItems_HideComparisonTooltip()
+    -- Hook SetHyperlink (used when showing items by link)
+    origSetHyperlink = GameTooltip.SetHyperlink
+    GameTooltip.SetHyperlink = function(self, link)
+        origSetHyperlink(self, link)
+        if link then
+            CompareItems_AddEquippedInfo(self, link)
         end
-    end)
+    end
 
-    DEFAULT_CHAT_FRAME:AddMessage("CompareItems OnUpdate hook set!")
-
-    -- Hook OnHide to hide comparison tooltip
-    local origOnHide = GameTooltip:GetScript("OnHide")
-    GameTooltip:SetScript("OnHide", function(self)
-        if origOnHide then
-            origOnHide(self)
+    -- Hook SetBagItem (used when hovering over bag items)
+    origSetBagItem = GameTooltip.SetBagItem
+    GameTooltip.SetBagItem = function(self, bag, slot)
+        local link = GetContainerItemLink(bag, slot)
+        origSetBagItem(self, bag, slot)
+        if link then
+            CompareItems_AddEquippedInfo(self, link)
         end
-        CompareItems_HideComparisonTooltip()
-    end)
+    end
+
+    -- Hook SetItem (used for equipment)
+    origSetItem = GameTooltip.SetItem
+    GameTooltip.SetItem = function(self, itemID)
+        origSetItem(self, itemID)
+    end
+
+    print_msg("CompareItems initialized")
 end
 
-function CompareItems_GetSlotForItem(link)
-    local equipLoc = select(9, GetItemInfo(link))
-    if not equipLoc then return nil end
+function CompareItems_AddEquippedInfo(tooltip, link)
+    local itemInfo = GetItemInfo(link)
+    if not itemInfo then
+        print_msg("GetItemInfo returned nil for: " .. tostring(link))
+        return
+    end
+    
+    -- Try to unpack the return values properly
+    local name = itemInfo[1]
+    local itemLink = itemInfo[2]
+    local quality = itemInfo[3]
+    local iLevel = itemInfo[4]
+    local reqLevel = itemInfo[5]
+    local itemType = itemInfo[6]
+    local subType = itemInfo[7]
+    local stackCount = itemInfo[8]
+    local equipSlot = itemInfo[9]
+    
+    print_msg("GetItemInfo: name=" .. tostring(name) .. " equipSlot=" .. tostring(equipSlot))
+    
+    if not equipSlot or equipSlot == "" then 
+        print_msg("No equipSlot for: " .. tostring(name))
+        return 
+    end
 
     local slotMap = {
         ["INVTYPE_HEAD"] = {1},
@@ -77,23 +101,32 @@ function CompareItems_GetSlotForItem(link)
         ["INVTYPE_FINGER"] = {11, 12},
         ["INVTYPE_TRINKET"] = {13, 14},
         ["INVTYPE_BACK"] = {15},
-        ["INVTYPE_WEAPON"] = {16, 17},  -- One-hand weapons can go in main or off-hand
-        ["INVTYPE_2HWEAPON"] = {16},     -- Two-hand weapons
+        ["INVTYPE_WEAPON"] = {16, 17},
+        ["INVTYPE_2HWEAPON"] = {16},
         ["INVTYPE_SHIELD"] = {17},
         ["INVTYPE_HOLDABLE"] = {17},
         ["INVTYPE_RANGED"] = {18},
         ["INVTYPE_TABARD"] = {19},
     }
 
-    return slotMap[equipLoc]
-end
+    local slots = slotMap[equipSlot]
+    if not slots then 
+        print_msg("No slots mapped for: " .. tostring(equipSlot))
+        return 
+    end
 
-function CompareItems_ShowComparisonTooltip(link)
-    ComparisonTooltip:SetOwner(GameTooltip, "ANCHOR_LEFT")
-    ComparisonTooltip:SetHyperlink(link)
-    ComparisonTooltip:Show()
-end
-
-function CompareItems_HideComparisonTooltip()
-    ComparisonTooltip:Hide()
+    print_msg("Adding equipped items to tooltip")
+    tooltip:AddLine(" ")
+    tooltip:AddLine("Equipped:", 1, 1, 0)
+    for _, slot in ipairs(slots) do
+        local equippedLink = GetInventoryItemLink("player", slot)
+        if equippedLink then
+            local equippedName = GetItemInfo(equippedLink)
+            print_msg("Slot " .. slot .. ": " .. tostring(equippedName))
+            tooltip:AddLine(equippedName, 1, 1, 1)
+        else
+            print_msg("Slot " .. slot .. ": empty")
+            tooltip:AddLine("None", 0.5, 0.5, 0.5)
+        end
+    end
 end
