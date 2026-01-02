@@ -7,8 +7,8 @@ local addonName = "CompareItems"
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 
-frame:SetScript("OnEvent", function()
-    if arg1 == addonName then
+frame:SetScript("OnEvent", function(self, event, addon)
+    if event == "ADDON_LOADED" and addon == addonName then
         -- Initialize the addon
         CompareItems_Init()
     end
@@ -21,15 +21,15 @@ function CompareItems_Init()
 
     -- Hook GameTooltip's OnTooltipSetItem
     local origOnTooltipSetItem = GameTooltip:GetScript("OnTooltipSetItem")
-    GameTooltip:SetScript("OnTooltipSetItem", function()
+    GameTooltip:SetScript("OnTooltipSetItem", function(self)
         -- Call original function
         if origOnTooltipSetItem then
-            origOnTooltipSetItem()
+            origOnTooltipSetItem(self)
         end
 
         -- Check if shift is held
         if IsShiftKeyDown() then
-            local name, link = GameTooltip:GetItem()
+            local name, link = self:GetItem()
             if link then
                 local slots = CompareItems_GetSlotForItem(link)
                 if slots then
@@ -47,9 +47,9 @@ function CompareItems_Init()
 
     -- Hook OnHide to hide comparison tooltip
     local origOnHide = GameTooltip:GetScript("OnHide")
-    GameTooltip:SetScript("OnHide", function()
+    GameTooltip:SetScript("OnHide", function(self)
         if origOnHide then
-            origOnHide()
+            origOnHide(self)
         end
         CompareItems_HideComparisonTooltip()
     end)
