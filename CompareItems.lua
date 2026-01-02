@@ -15,6 +15,8 @@ frame:SetScript("OnEvent", function(self, event, addon)
 end)
 
 function CompareItems_Init()
+    DEFAULT_CHAT_FRAME:AddMessage("CompareItems addon loaded successfully!")
+
     -- Create comparison tooltip
     ComparisonTooltip = CreateFrame("GameTooltip", "CompareItemsTooltip", UIParent, "GameTooltipTemplate")
     ComparisonTooltip:SetFrameStrata("DIALOG")  -- Higher strata to ensure visibility
@@ -29,26 +31,35 @@ function CompareItems_Init()
 
         -- Check if shift is held
         if IsShiftKeyDown() then
+            DEFAULT_CHAT_FRAME:AddMessage("Shift is down, checking item...")
             local name, link = self:GetItem()
             if link then
+                DEFAULT_CHAT_FRAME:AddMessage("Item link found: " .. link)
                 local slots = CompareItems_GetSlotForItem(link)
                 if slots then
+                    DEFAULT_CHAT_FRAME:AddMessage("Slots found: " .. table.concat(slots, ", "))
                     for _, slot in ipairs(slots) do
                         local equippedLink = GetInventoryItemLink("player", slot)
                         if equippedLink then
-                            DEFAULT_CHAT_FRAME:AddMessage("CompareItems: Showing comparison for slot " .. slot)
+                            DEFAULT_CHAT_FRAME:AddMessage("Equipped item found in slot " .. slot .. ": " .. equippedLink)
                             CompareItems_ShowComparisonTooltip(equippedLink)
                             break  -- Show the first equipped item
+                        else
+                            DEFAULT_CHAT_FRAME:AddMessage("No equipped item in slot " .. slot)
                         end
                     end
                 else
-                    DEFAULT_CHAT_FRAME:AddMessage("CompareItems: No slots found for item")
+                    DEFAULT_CHAT_FRAME:AddMessage("No slots found for item")
                 end
             else
-                DEFAULT_CHAT_FRAME:AddMessage("CompareItems: No item link found")
+                DEFAULT_CHAT_FRAME:AddMessage("No item link found")
             end
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("Shift not down")
         end
     end)
+
+    DEFAULT_CHAT_FRAME:AddMessage("Tooltip hook set successfully!")
 
     -- Hook OnHide to hide comparison tooltip
     local origOnHide = GameTooltip:GetScript("OnHide")
